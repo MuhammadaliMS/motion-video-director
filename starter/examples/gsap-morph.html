@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- GSAP: shape morph through UI states. Pattern: build ONE paused timeline, then render(t) = tl.seek(t).
+     GSAP timelines are already seekable, so this is the easiest route for DOM/SVG motion
+     (and it's what HyperFrames uses natively). -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<script src="../node_modules/gsap/dist/gsap.min.js"></script>
+<script src="../lib/motion.js"></script>
+<style>
+  #shape { position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    background: var(--accent); color: #07110c; font-weight: 650; font-size: 30px; }
+  .state { position: absolute; opacity: 0; white-space: nowrap; display: flex; align-items: center; gap: 18px; }
+  .ring { width: 40px; height: 40px; border-radius: 50%; border: 5px solid rgba(7,17,12,.25); border-top-color: #07110c; }
+  .bar { height: 10px; border-radius: 5px; background: rgba(7,17,12,.2); width: 300px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: #07110c; }
+  .search { color: rgba(7,17,12,.55); font-weight: 500; }
+</style>
+</head><body>
+<div class="title">One shape, every state</div>
+<div class="sub">Button → loader → progress → search → done</div>
+<div id="shape">
+  <div class="state" id="s1">Get started</div>
+  <div class="state" id="s2"><div class="ring"></div></div>
+  <div class="state" id="s3"><div class="bar"><i></i></div><span>72%</span></div>
+  <div class="state search" id="s4">⌕ Search your workspace</div>
+  <div class="state" id="s5">✓ All set</div>
+</div>
+<script>
+const { beats, SPRINGS, spring, stage } = Motion;
+const B = beats(120);
+// Use the kit's closed-form spring as a GSAP ease (overshoots slightly, then settles).
+const springEase = (preset) => (p) => spring(p * 1.1, SPRINGS[preset]);
+
+const states = [
+  { w: 280, h: 76, r: 38 },   // button
+  { w: 96, h: 96, r: 48 },    // loader
+  { w: 460, h: 88, r: 24 },   // progress
+  { w: 720, h: 84, r: 42 },   // search
+  { w: 320, h: 96, r: 30 },   // done
+];
+const tl = gsap.timeline({ paused: true });
+gsap.set("#shape", { width: states[0].w, height: states[0].h, borderRadius: states[0].r });
+tl.to("#s1", { opacity: 1, duration: 0.3 }, B.at(0.5));
+states.slice(1).forEach((s, i) => {
+  const at = B.at(2 + i * 2.5);
+  tl.to(`#s${i + 1}`, { opacity: 0, duration: 0.15 }, at - 0.15)
+    .to("#shape", { width: s.w, height: s.h, borderRadius: s.r, duration: 0.7, ease: springEase("card") }, at)
+    .to(`#s${i + 2}`, { opacity: 1, duration: 0.25 }, at + 0.45);
+});
+tl.to(".ring", { rotation: 720, duration: 1.2, ease: "none" }, B.at(2));
+tl.to(".bar i", { width: "72%", duration: 0.9, ease: "power2.out" }, B.at(4.5) + 0.4);
+tl.to("#shape", { scale: 1.06, duration: 0.15, yoyo: true, repeat: 1 }, B.at(11));
+
+stage({ fps: 30, duration: 6, render: (t) => tl.seek(t, false) });
+</script></body></html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<!-- three-studio: the premium 3D look as a template. Real props from lib/studio3d.js at real proportions, a studio
+     cyclorama, per-set colour grade, supersampling + subframe motion blur, a flat 2D insert between 3D shots,
+     arc accents, and type that stays readable on any background. See references/3d-fidelity.md. -->
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=JetBrains+Mono:wght@700;800&family=Caveat:wght@700&display=block" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js","three/addons/":"../node_modules/three/examples/jsm/"}}</script>
+<style>
+  * { margin:0; box-sizing:border-box; }
+  html, body { width:1920px; height:1080px; overflow:hidden; background:#EDECF1; font-family:'Plus Jakarta Sans', sans-serif; }
+  canvas#gl { position:absolute; left:0; top:0; width:1920px !important; height:1080px !important; visibility:hidden; }
+  #mb, #ov { position:absolute; left:0; top:0; } #kt { position:absolute; inset:0; pointer-events:none; }
+  .blk { position:absolute; isolation:isolate; } .ln { display:flex; align-items:baseline; white-space:nowrap; line-height:1; }
+  .w { display:inline-block; margin-right:0.24em; } .w-m { font:700 66px 'Plus Jakarta Sans'; } .w-B { font:800 150px 'Plus Jakarta Sans'; letter-spacing:-0.05em; color:#E84393 !important; }
+  .tw .w-m { color:#fff; } .td .w-m { color:#1E1E24; }
+  .td { text-shadow:0 0 22px rgba(255,255,255,.9), 0 0 5px rgba(255,255,255,.7); } .tw { text-shadow:0 2px 20px rgba(25,10,45,.6), 0 0 4px rgba(25,10,45,.4); }
+  .scrimL::before, .scrimD::before { content:""; position:absolute; inset:-34px -56px; border-radius:70px; z-index:-1; filter:blur(28px); }
+  .scrimL::before { background:rgba(250,248,252,.38); } .scrimD::before { background:rgba(18,12,36,.42); }
+</style>
+<script src="../lib/motion.js"></script>
+</head><body>
+<canvas id="gl" width="1920" height="1080"></canvas><canvas id="mb" width="1920" height="1080"></canvas><canvas id="ov" width="1920" height="1080"></canvas><div id="kt"></div>
+<script type="module">
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import * as K from "../lib/studio3d.js";
+const { springAt, clamp, lerp, EASE, stage } = Motion; const pr = (t, a, d) => clamp((t - a) / d); const sp0 = (t, at) => (t >= at ? springAt(t, at, "pop") : 0);
+const FPS = 30, DUR = 6, Q = new URLSearchParams(location.search), SS = Number(Q.get("ss") || 2), SUB = Number(Q.get("mb") || 3);
+const SHOTS = [[0, "studio"], [3.6, "type2d"], [4.8, "warm"], [DUR]]; const shotAt = (t) => { let i = 0; while (i < SHOTS.length - 2 && t >= SHOTS[i + 1][0]) i++; return i; };
+
+/* renderer + post: NeutralToneMapping, low bloom with a high threshold, grade/halftone/vignette/grain in one pass */
+const R = new THREE.WebGLRenderer({ canvas: document.getElementById("gl"), antialias: true, preserveDrawingBuffer: true }); R.setPixelRatio(SS); R.setSize(1920, 1080, false); R.shadowMap.enabled = true; R.shadowMap.type = THREE.VSMShadowMap; R.toneMapping = THREE.NeutralToneMapping;
+const S = new THREE.Scene(); S.environment = new THREE.PMREMGenerator(R).fromScene(new RoomEnvironment(), 0.04).texture; K.ENV.map = S.environment; S.environmentIntensity = 0.5; // 1.0 (the default) washes a bright cyc set out
+const CAM = new THREE.PerspectiveCamera(32, 1920 / 1080, 0.05, 200); const comp = new EffectComposer(R); comp.setPixelRatio(SS); comp.setSize(1920, 1080); comp.addPass(new RenderPass(S, CAM)); comp.addPass(new UnrealBloomPass(new THREE.Vector2(1920, 1080), 0.25, 0.7, 1.6)); comp.addPass(new OutputPass());
+const post = new ShaderPass({ uniforms: { tDiffuse: { value: null }, uT: { value: 0 }, uSh: { value: new THREE.Vector3() }, uVg: { value: new THREE.Vector3() }, uTint: { value: new THREE.Color() } },
+  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uT; uniform vec3 uSh, uVg, uTint; varying vec2 vUv; float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + uT * 37.0) * 43758.5453); }
+  void main(){ vec2 d = vUv - 0.5; float r = length(d); vec3 c; c.r = texture2D(tDiffuse, vUv + d * 0.008 * r).r; c.g = texture2D(tDiffuse, vUv).g; c.b = texture2D(tDiffuse, vUv - d * 0.008 * r).b; float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(c, c * uSh, (1.0 - smoothstep(0.15, 0.7, l)) * 0.55); c = mix(vec3(l), c, 1.1); c = clamp((c - 0.5) * 1.06 + 0.5, 0.0, 1.0);
+    vec2 px = fract(vUv * vec2(1920.0, 1080.0) / 7.0) - 0.5; float e = smoothstep(0.38, 0.75, r); c = mix(c, mix(c, uTint, 0.55), (1.0 - smoothstep(0.5 * e - 0.08, 0.5 * e + 0.02, length(px))) * 0.3 * e);
+    c = mix(c, c * uVg, smoothstep(0.45, 0.95, r) * 0.55); c += (h(vUv * 1500.0) - 0.5) * 0.02; gl_FragColor = vec4(c, 1.0); }` }); comp.addPass(post);
+const GRADE = { violet: [[0.86, 0.72, 1.12], [0.78, 0.62, 0.95], 0x6c3fd0], cool: [[0.88, 0.94, 1.08], [0.8, 0.87, 0.99], 0x3d6fd6], warm: [[1.05, 0.92, 0.82], [0.96, 0.86, 0.78], 0xd0843f], neutral: [[0.95, 0.94, 1.02], [0.86, 0.85, 0.9], 0x70708a], navy: [[0.8, 0.86, 1.15], [0.62, 0.68, 0.98], 0x3d4fd6] };
+const grade = (k) => { const g = GRADE[k]; post.uniforms.uSh.value.set(...g[0]); post.uniforms.uVg.value.set(...g[1]); post.uniforms.uTint.value.set(g[2]); };
+const hemi = new THREE.HemisphereLight(0xfff4fb, 0x9d72d6, 0.7); S.add(hemi); const sun = new THREE.DirectionalLight(0xfff1e6, 1.7); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 8; sun.shadow.blurSamples = 16; sun.shadow.bias = -0.0005; Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10 }); sun.position.set(6, 12, 7); S.add(sun);
+
+/* two sets: cool studio and warm studio. Real props, one scale (1u = 10 cm), nothing is a bare box or blob */
+const studio = new THREE.Group(), warm = new THREE.Group(); S.add(studio, warm); K.cyc(studio, 0xd6e8fb); K.cyc(warm, 0xf4ecdf);
+const props = [[K.PROP.clapper(), -3.0, 0, -0.8, 0.9, 0.4], [K.PROP.reel(), 3.1, 0.62, -0.6, 1, -0.3], [K.PROP.mug(0xffffff), 2.0, 0, 1.0, 1, 2.2], [K.PROP.headphones(), -1.9, 0.55, 1.1, 0.9, 0.4]].map(([o, x, y, z, s, ry]) => { studio.add(o); o.position.set(x, y, z); o.scale.setScalar(s); o.rotation.y = ry; return o; });
+K.pencilCup(studio, 3.6, 1.4, 1.0); const doc = K.docIcon(studio, 1.4); const doc2 = K.docIcon(warm, 1.6); const CONF = K.confettiSet(warm);
+const cup = K.PROP.camera(); warm.add(cup); cup.position.set(-2.6, 0.43, -0.4); cup.rotation.y = 0.5; const mic = K.PROP.mic(); warm.add(mic); mic.position.set(2.7, 0.62, -0.3);
+
+/* type: authored theme in data-th, then legible() measures the frame under each block and flips ink/white */
+const LINES = [[0.5, 3.4, 120, 120, "Every^m prop^B", "w"], [4.9, 6.0, 120, 760, "Real^m proportions.^B", "w"]];
+function kinetic(t) { document.getElementById("kt").innerHTML = LINES.filter(([a, b]) => t >= a && t < b).map(([a, b, x, y, txt, th]) => `<div class="blk t${th}" data-th="${th}" style="left:${x}px;top:${y}px"><div class="ln">${txt.split(" ").map((tk, i) => { const [w, s] = tk.split("^"); const k = sp0(t, a + i * 0.15); return `<span class="w w-${s}" style="opacity:${clamp(k * 3)};transform:translateY(${(1 - Math.min(k, 1)) * 30}px)">${w}</span>`; }).join("")}</div></div>`).join(""); }
+const LUMC = document.createElement("canvas"); LUMC.width = 192; LUMC.height = 108; const lumg = LUMC.getContext("2d", { willReadFrequently: true });
+function legible() { const blks = document.querySelectorAll("#kt .blk"); if (!blks.length) return; lumg.drawImage(document.getElementById("mb"), 0, 0, 192, 108); const px = lumg.getImageData(0, 0, 192, 108).data;
+  blks.forEach((el) => { const r = el.getBoundingClientRect(); let s = 0, s2 = 0, n = 0; for (let y = Math.max(0, r.top / 10 | 0); y <= Math.min(107, Math.ceil(r.bottom / 10)); y++) for (let x = Math.max(0, r.left / 10 | 0); x <= Math.min(191, Math.ceil(r.right / 10)); x++) { const i = (y * 192 + x) * 4, L = (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255; s += L; s2 += L * L; n++; }
+    if (!n) return; const m = s / n, sd = Math.sqrt(Math.max(0, s2 / n - m * m)), light = el.dataset.th === "w" ? m > 0.66 : m > 0.4; el.classList.remove("tw", "td", "scrimL", "scrimD"); el.classList.add(light ? "td" : "tw"); if (sd > 0.16 || (light ? m < 0.6 : m > 0.36)) el.classList.add(light ? "scrimL" : "scrimD"); }); }
+
+/* 2D insert: flat giant type, letters slide in with blur (draw straight to the output canvas, skip WebGL) */
+function type2d(g, t) { g.fillStyle = "#EDECF1"; g.fillRect(0, 0, 1920, 1080); g.font = "800 420px 'Plus Jakarta Sans'"; const txt = "fidelity.", ws = [...txt].map((c, i) => g.measureText(c).width - 15 - (txt[i + 1] === "." ? 30 : 0)); let x = 960 - ws.reduce((a, b) => a + b) / 2;
+  [...txt].forEach((c, i) => { const k = EASE.premium(pr(t, 3.65 + i * 0.035, 0.42)); if (k > 0) { g.save(); g.filter = `blur(${((1 - k) * 24).toFixed(1)}px)`; g.fillStyle = i < 4 ? "#1E1E24" : "#E84393"; g.fillText(c, x + (1 - k) * 1000, 690); g.restore(); } x += ws[i]; }); }
+const ov = document.getElementById("ov").getContext("2d");
+function arc(g, t, t0, cx, cy, r, col) { const u = t - t0; if (u < 0 || u > 0.95) return; const head = EASE.exit(clamp(u / 0.55)) * Math.PI * 2, tail = EASE.enter(clamp((u - 0.3) / 0.6)) * Math.PI * 2; if (head - tail < 0.02) return; const a0 = -Math.PI / 2 + u * 1.4; g.strokeStyle = col; g.lineWidth = 24; g.lineCap = "round"; g.beginPath(); g.arc(cx, cy, r * (0.92 + u * 0.14), a0 + tail, a0 + head); g.stroke(); }
+
+function drawScene(t) { let si = shotAt(t); if (SHOTS[si][1] === "type2d") si = t < 4.2 ? 0 : 2; const name = SHOTS[si][1];
+  studio.visible = name === "studio"; warm.visible = name === "warm"; S.background = new THREE.Color(name === "studio" ? 0xd2e5fa : 0xf2e9da); grade(name === "studio" ? "cool" : "warm"); R.toneMappingExposure = name === "studio" ? 0.8 : 0.76;
+  const kd = sp0(t, 0.4); doc.position.set(0, 2.2 + Math.sin(t * 1.6) * 0.05, 0.6); doc.rotation.y = (1 - Math.min(kd, 1)) * 3 + Math.sin(t) * 0.2; doc.scale.setScalar(Math.max(0.001, kd) * 1.4);
+  const k2 = sp0(t, 4.85); doc2.position.set(0, 2.3, 0.6); doc2.rotation.y = (1 - Math.min(k2, 1)) * 3; doc2.scale.setScalar(Math.max(0.001, k2) * 1.6); K.confetti(CONF, 5.0, t, K.V3(0, 2.4, 0.6));
+  const u = pr(t, 0, 3.6); CAM.position.set(lerp(-0.6, 0.4, u), 2.6, name === "studio" ? lerp(10.5, 9.3, u) : 9.6); CAM.lookAt(0, 1.6, 0); post.uniforms.uT.value = t; comp.render(); }
+function render(t) { const mb = document.getElementById("mb").getContext("2d"); const name = SHOTS[shotAt(t)][1];
+  if (name === "type2d") { mb.save(); type2d(mb, t); mb.restore(); } else { const dt = 0.5 / FPS / SUB; for (let k = 0; k < SUB; k++) { drawScene(t + k * dt); mb.globalAlpha = 1 / (k + 1); mb.drawImage(R.domElement, 0, 0, 1920, 1080); } mb.globalAlpha = 1; }
+  kinetic(t); legible(); ov.clearRect(0, 0, 1920, 1080); arc(ov, t, 0.45, 960, 470, 300, "#E84393"); arc(ov, t, 4.9, 960, 460, 330, "#74B9FF"); }
+async function setup() { await Promise.all(["800 80px 'Plus Jakarta Sans'", "700 60px 'Plus Jakarta Sans'", "600 30px 'Plus Jakarta Sans'", "800 24px 'JetBrains Mono'", "700 26px 'JetBrains Mono'", "700 56px 'Caveat'"].map((f) => document.fonts.load(f, "AZaz09.✳"))); K.DRAW.forEach((d) => d.draw()); S.traverse((o) => { if (o.isMesh) o.frustumCulled = false; }); }
+stage({ fps: FPS, duration: DUR, width: 1920, height: 1080, render, setup });
+</script></body></html>

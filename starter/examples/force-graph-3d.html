@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- 3d-force-graph: glowing 3D network with a camera orbit.
+     Pattern: give every node fixed positions (fx/fy/fz) computed once from a seed, stop the
+     library's own loop (pauseAnimation), and render the Three.js scene yourself from t. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<script src="../node_modules/3d-force-graph/dist/3d-force-graph.min.js"></script>
+<script src="../lib/motion.js"></script>
+<style>#g { position: absolute; inset: 0; }</style>
+</head><body>
+<div id="g"></div>
+<div class="title">Everything connected</div>
+<div class="sub">Clusters form, then the camera circles the network</div>
+<script>
+const { springAt, progress, easeInOutCubic, beats, clamp, lerp, rng, stage } = Motion;
+const B = beats(120);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// Seeded clustered positions, so nothing depends on the physics engine.
+const R = rng(11);
+const centers = [[-160, 40, 0], [150, -30, 60], [10, 120, -120], [20, -150, -40]];
+const colors = [css("--accent"), css("--accent-2"), css("--warm"), "#c4a7ff"];
+const nodes = [];
+centers.forEach((c, ci) => {
+  for (let i = 0; i < 22; i++) {
+    const r = 70 * Math.cbrt(R()), th = R() * Math.PI * 2, ph = Math.acos(2 * R() - 1);
+    nodes.push({ id: nodes.length, cluster: ci,
+      fx: c[0] + r * Math.sin(ph) * Math.cos(th), fy: c[1] + r * Math.sin(ph) * Math.sin(th), fz: c[2] + r * Math.cos(ph) });
+  }
+});
+const links = [];
+nodes.forEach((n) => {
+  const same = nodes.filter((m) => m.cluster === n.cluster && m.id < n.id);
+  if (same.length) links.push({ source: same[Math.floor(R() * same.length)].id, target: n.id });
+});
+for (let k = 0; k < 10; k++) links.push({ source: Math.floor(R() * nodes.length), target: Math.floor(R() * nodes.length) });
+
+const G = ForceGraph3D({ rendererConfig: { antialias: true, preserveDrawingBuffer: true } })(document.getElementById("g"))
+  .backgroundColor(css("--bg"))
+  .showNavInfo(false).enableNavigationControls(false).enableNodeDrag(false)
+  .nodeRelSize(4).nodeResolution(16).nodeOpacity(0.95)
+  .nodeColor((n) => colors[n.cluster])
+  .linkColor(() => "rgba(140,160,200,0.6)").linkWidth(0).linkOpacity(0.5) // width 0 = plain lines we can move per frame
+  .warmupTicks(1).cooldownTicks(0)
+  .graphData({ nodes, links });
+G.pauseAnimation(); // we drive every frame ourselves
+
+function render(t) {
+  // Clusters gather: each node springs from its cluster centre out to its fixed spot.
+  G.graphData().nodes.forEach((n) => {
+    const p = clamp(springAt(t, B.at(0.5) + n.cluster * 0.5 + (n.id % 22) * 0.02, "card"), 0, 1.1);
+    const c = centers[n.cluster];
+    const obj = n.__threeObj;
+    if (!obj) return;
+    obj.position.set(lerp(c[0] * 2.2, n.fx, p), lerp(c[1] * 2.2, n.fy, p), lerp(c[2] * 2.2, n.fz, p));
+    obj.scale.setScalar(Math.max(0.001, clamp(p, 0, 1)));
+    n.x = obj.position.x; n.y = obj.position.y; n.z = obj.position.z;
+  });
+  // Re-place link lines to follow the nodes.
+  G.graphData().links.forEach((l) => {
+    const line = l.__lineObj;
+    if (!line) return;
+    const a = l.source, b = l.target;
+    const arr = line.geometry.attributes.position;
+    arr.setXYZ(0, a.x, a.y, a.z); arr.setXYZ(1, b.x, b.y, b.z);
+    arr.needsUpdate = true; line.geometry.computeBoundingSphere();
+    line.material.opacity = 0.45 * clamp((t - B.at(3)) * 1.5);
+  });
+  // Camera orbit from t.
+  const ang = lerp(-0.4, 1.4, easeInOutCubic(progress(t, 0, 6)));
+  const dist = lerp(820, 620, easeInOutCubic(progress(t, 2, 4)));
+  const cam = G.camera();
+  cam.position.set(Math.sin(ang) * dist, 80, Math.cos(ang) * dist);
+  cam.lookAt(0, 0, 0);
+  G.renderer().render(G.scene(), cam);
+}
+window.addEventListener("resize", () => G.width(innerWidth).height(innerHeight));
+stage({ fps: 30, duration: 6, render, setup: () => new Promise((r) => setTimeout(r, 300)) });
+</script></body></html>

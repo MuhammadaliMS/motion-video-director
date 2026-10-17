@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Blank scene. Copy this file, add the library you need, and fill in render(t).
+     Rules: everything visible is computed from t. No timers, no Math.random(), no library
+     animations (turn them off). Check with: node render.mjs examples/your-scene.html --check -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<!-- <script src="../node_modules/d3/dist/d3.min.js"></script> -->
+<script src="../lib/motion.js"></script>
+</head><body>
+<div class="title" id="title">Your headline</div>
+<div id="box" style="position:absolute;left:50%;top:55%;width:240px;height:240px;margin:-120px;border-radius:var(--radius);background:var(--accent)"></div>
+<script>
+const { springAt, progress, easeOutCubic, beats, clamp, lerp, stage } = Motion;
+const B = beats(120);                  // 120 BPM: B.at(n) = n * 0.5s
+const box = document.getElementById("box");
+const title = document.getElementById("title");
+
+// One-off setup (load data, compute layouts) goes in setup(); it runs before the first frame.
+async function setup() {}
+
+function render(t) {
+  const p = springAt(t, B.at(1), "card");               // lands on beat 1
+  box.style.transform = `translateY(${lerp(200, 0, p)}px) scale(${clamp(p, 0, 1.05)})`;
+  title.style.opacity = easeOutCubic(progress(t, B.at(2), 0.6));
+}
+stage({ fps: 30, duration: 4, width: 1920, height: 1080, render, setup });
+</script></body></html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<!-- Cytoscape: network / graph-theory story. Nodes pop in ring by ring, then the shortest path
+     lights up while the camera eases toward it.
+     Pattern: use Cytoscape HEADLESS for the graph maths (BFS order, shortest path, degrees) and
+     d3-force for a deterministic layout, then DRAW with SVG from t.
+     Why not Cytoscape's own canvas: it caches and redraws lazily, so the same t can give different
+     pixels (tested: it fails the --check). Its maths is fine; its renderer isn't frame-accurate. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<script src="../node_modules/d3/dist/d3.min.js"></script>
+<script src="../node_modules/cytoscape/dist/cytoscape.min.js"></script>
+<script src="../lib/motion.js"></script>
+</head><body>
+<svg id="g" width="1920" height="1080"><g id="cam"><g id="edges"></g><g id="nodes"></g></g></svg>
+<div class="title">From signup to paid</div>
+<div class="sub">The shortest route through the product</div>
+<script>
+const { springAt, progress, easeInOutCubic, beats, clamp, lerp, rng, stage } = Motion;
+const B = beats(120);
+
+// Seeded graph: a tree plus a few cross links.
+const R = rng(7), N = 34;
+const ids = d3.range(N).map((i) => `n${i}`);
+const edges = d3.range(1, N).map((i) => ({ source: `n${Math.floor(R() * i)}`, target: `n${i}` }));
+for (let k = 0; k < 8; k++) {
+  const a = `n${Math.floor(R() * N)}`, b = `n${Math.floor(R() * N)}`;
+  if (a !== b) edges.push({ source: a, target: b });
+}
+
+// 1) Graph maths with headless Cytoscape.
+const cy = cytoscape({ headless: true, elements: [
+  ...ids.map((id) => ({ data: { id } })),
+  ...edges.map((e, i) => ({ data: { id: `e${i}`, source: e.source, target: e.target } })),
+] });
+const depth = {};
+cy.elements().bfs({ roots: "#n0", visit: (v, e, u, i, d) => { depth[v.id()] = d; } });
+const goal = ids.reduce((a, b) => (depth[b] > depth[a] ? b : a));
+const route = cy.elements().aStar({ root: "#n0", goal: `#${goal}` }).path;
+const routeNodes = route.nodes().map((n) => n.id());
+const routeEdges = new Set(route.edges().map((e) => e.id()));
+
+// 2) Deterministic layout with d3-force (fixed tick count, built-in seeded randomness).
+const simNodes = ids.map((id) => ({ id }));
+const sim = d3.forceSimulation(simNodes)
+  .force("link", d3.forceLink(edges.map((e) => ({ ...e }))).id((d) => d.id).distance(90))
+  .force("charge", d3.forceManyBody().strength(-260))
+  .force("center", d3.forceCenter(0, 0)).stop();
+for (let i = 0; i < 400; i++) sim.tick();
+const pos = Object.fromEntries(simNodes.map((n) => [n.id, n]));
+const bounds = (list) => {
+  const xs = list.map((id) => pos[id].x), ys = list.map((id) => pos[id].y);
+  return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: (Math.min(...ys) + Math.max(...ys)) / 2,
+    w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+};
+const all = bounds(ids), focus = bounds(routeNodes);
+
+// 3) Draw with SVG, from t.
+const edgeSel = d3.select("#edges").selectAll("line").data(edges.map((e, i) => ({ ...e, id: `e${i}` }))).join("line")
+  .attr("x1", (e) => pos[e.source].x).attr("y1", (e) => pos[e.source].y)
+  .attr("x2", (e) => pos[e.target].x).attr("y2", (e) => pos[e.target].y).attr("stroke-linecap", "round");
+const nodeSel = d3.select("#nodes").selectAll("circle").data(ids).join("circle")
+  .attr("cx", (id) => pos[id].x).attr("cy", (id) => pos[id].y);
+const lit = (t, i) => t > B.at(7) + i * 0.18;
+
+function render(t) {
+  nodeSel.each(function (id) {
+    const p = clamp(springAt(t, B.at(0.5) + depth[id] * 0.25, "pop"), 0, 1.3);
+    const ri = routeNodes.indexOf(id), on = ri >= 0 && lit(t, ri);
+    d3.select(this).attr("r", Math.max(0, 11 * p + (on ? 7 : 0))).attr("opacity", clamp(p))
+      .attr("fill", on ? "var(--accent)" : "var(--accent-2)");
+  });
+  edgeSel.each(function (e) {
+    const d = Math.max(depth[e.source], depth[e.target]);
+    const on = routeEdges.has(e.id) && lit(t, routeNodes.indexOf(e.target) - 0.5);
+    d3.select(this).attr("opacity", clamp((t - B.at(0.5) - d * 0.25) * 2))
+      .attr("stroke-width", on ? 7 : 3).attr("stroke", on ? "var(--accent)" : "var(--line)");
+  });
+  // Camera: fit everything, then ease toward the route.
+  const W = innerWidth, H = innerHeight, top = 260;
+  const zAll = Math.min(W / (all.w + 300), (H - top) / (all.h + 200));
+  const zFocus = Math.min(W / (focus.w + 600), (H - top) / (focus.h + 400), zAll * 1.3);
+  const k = easeInOutCubic(progress(t, B.at(8), 2));
+  const z = lerp(zAll, zFocus, k), cx = lerp(all.cx, focus.cx, k), cyy = lerp(all.cy, focus.cy, k);
+  d3.select("#g").attr("width", W).attr("height", H);
+  d3.select("#cam").attr("transform", `translate(${W / 2 - cx * z},${top + (H - top) / 2 - cyy * z}) scale(${z})`);
+}
+stage({ fps: 30, duration: 6, render });
+</script></body></html>

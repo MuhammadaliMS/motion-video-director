@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- Chart.js: quick branded charts. Pattern: animation:false, compute the data from t,
+     then chart.update('none') every frame. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<script src="../node_modules/chart.js/dist/chart.umd.js"></script>
+<script src="../lib/motion.js"></script>
+<style>.wrap { position: absolute; left: 120px; right: 120px; top: 280px; bottom: 120px; }</style>
+</head><body>
+<div class="title">Revenue by channel</div>
+<div class="sub">Each channel grows in on its own beat</div>
+<div class="wrap"><canvas id="c"></canvas></div>
+<script>
+const { springAt, beats, clamp, stage } = Motion;
+const B = beats(120);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+const series = [
+  { label: "Ads", data: [12, 18, 22, 27, 31, 38], color: css("--accent-2") },
+  { label: "Social", data: [8, 11, 17, 21, 29, 33], color: css("--accent") },
+  { label: "Web", data: [5, 9, 10, 15, 19, 26], color: css("--warm") },
+];
+Chart.defaults.font.family = css("--font");
+Chart.defaults.font.size = 22;
+Chart.defaults.color = css("--muted");
+const chart = new Chart(document.getElementById("c"), {
+  type: "bar",
+  data: { labels: months, datasets: series.map((s) => ({ label: s.label, data: s.data.map(() => 0), backgroundColor: s.color, borderRadius: 10, borderSkipped: false })) },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    events: [], // no hover states in a video
+    plugins: { legend: { position: "top", align: "end", labels: { boxWidth: 18, boxHeight: 18, useBorderRadius: true, borderRadius: 4 } } },
+    scales: { x: { grid: { display: false } }, y: { max: 40, grid: { color: css("--line") }, border: { display: false } } },
+  },
+});
+function render(t) {
+  series.forEach((s, si) => {
+    chart.data.datasets[si].data = s.data.map((v, i) =>
+      v * clamp(springAt(t, B.at(1 + si * 2 + i * 0.35), "card"), 0, 1.04));
+  });
+  chart.update("none");
+}
+stage({ fps: 30, duration: 6, render });
+</script></body></html>

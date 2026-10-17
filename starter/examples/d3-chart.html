@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- d3: custom SVG data motion. Bars spring up on the beat, then a line draws across them.
+     Pattern: use d3 scales/shapes as pure functions of t. Never use d3.transition() (timer-based). -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<script src="../node_modules/d3/dist/d3.min.js"></script>
+<script src="../lib/motion.js"></script>
+</head><body>
+<div class="title">Weekly signups</div>
+<div class="sub">Bars land on the beat, then the trend draws in</div>
+<svg id="chart" width="1920" height="1080"></svg>
+<script>
+const { springAt, progress, easeInOutCubic, beats, clamp, stage } = Motion;
+const data = [42, 58, 51, 77, 69, 94, 88, 120];
+const B = beats(120);
+const m = { l: 160, r: 160, t: 300, b: 140 };
+const x = d3.scaleBand().domain(d3.range(data.length)).range([m.l, 1920 - m.r]).padding(0.32);
+const y = d3.scaleLinear().domain([0, 130]).range([1080 - m.b, m.t]);
+const svg = d3.select("#chart");
+const bars = svg.selectAll("rect").data(data).join("rect")
+  .attr("x", (_, i) => x(i)).attr("width", x.bandwidth()).attr("rx", 14).attr("fill", "var(--surface)")
+  .attr("stroke", "var(--line)");
+const labels = svg.selectAll("text.v").data(data).join("text").attr("class", "v")
+  .attr("x", (_, i) => x(i) + x.bandwidth() / 2).attr("text-anchor", "middle")
+  .attr("fill", "var(--muted)").attr("font-size", 26);
+const line = d3.line().x((_, i) => x(i) + x.bandwidth() / 2).y((d) => y(d)).curve(d3.curveCatmullRom);
+const path = svg.append("path").attr("d", line(data)).attr("fill", "none")
+  .attr("stroke", "var(--accent)").attr("stroke-width", 6).attr("stroke-linecap", "round");
+const len = path.node().getTotalLength();
+const dots = svg.selectAll("circle").data(data).join("circle")
+  .attr("cx", (_, i) => x(i) + x.bandwidth() / 2).attr("cy", (d) => y(d)).attr("fill", "var(--accent)");
+
+function render(t) {
+  bars.each(function (d, i) {
+    const p = springAt(t, B.at(1 + i * 0.5), "card");       // one bar per half beat
+    const top = y(d * p);
+    d3.select(this).attr("y", top).attr("height", Math.max(0, y(0) - top))
+      .attr("fill", d === d3.max(data) && p > 0.5 ? "var(--accent-2)" : "var(--surface)");
+  });
+  labels.attr("y", (d, i) => y(d * springAt(t, B.at(1 + i * 0.5))) - 18)
+    .attr("opacity", (_, i) => clamp((t - B.at(1.5 + i * 0.5)) * 3))
+    .text((d, i) => Math.round(d * clamp(springAt(t, B.at(1 + i * 0.5)), 0, 1)));
+  const draw = easeInOutCubic(progress(t, B.at(6), 1.6));
+  path.attr("stroke-dasharray", len).attr("stroke-dashoffset", len * (1 - draw));
+  dots.attr("r", (_, i) => 9 * clamp(springAt(t, B.at(6) + (i / (data.length - 1)) * 1.6, "pop"), 0, 1.2));
+}
+stage({ fps: 30, duration: 6, render });
+</script></body></html>

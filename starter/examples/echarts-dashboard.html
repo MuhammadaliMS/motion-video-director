@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- ECharts: dashboard look (gauge + donut + area). Pattern: animation:false, setOption from t,
+     then force a synchronous paint with getZr().refreshImmediately(). -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../lib/base.css">
+<script src="../node_modules/echarts/dist/echarts.min.js"></script>
+<script src="../lib/motion.js"></script>
+<style>#c { position: absolute; left: 80px; right: 80px; top: 250px; bottom: 80px; }</style>
+</head><body>
+<div class="title">One clear view</div>
+<div class="sub">Three panels settle into a single dashboard</div>
+<div id="c"></div>
+<script>
+const { springAt, progress, easeOutCubic, beats, clamp, lerp, stage } = Motion;
+const B = beats(120);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const chart = echarts.init(document.getElementById("c"), null, { renderer: "canvas" });
+const trend = [21, 25, 24, 31, 35, 33, 41, 46, 44, 52, 58, 63];
+
+function render(t) {
+  const g = clamp(springAt(t, B.at(1), "heavy"), 0, 1.02);
+  const d = easeOutCubic(progress(t, B.at(3), 1.2));
+  const a = easeOutCubic(progress(t, B.at(5), 1.5));
+  const shown = Math.max(2, Math.round(lerp(2, trend.length, a)));
+  chart.setOption({
+    animation: false,
+    textStyle: { fontFamily: css("--font"), color: css("--muted") },
+    grid: { left: "55%", right: 40, top: 60, bottom: 60 },
+    xAxis: { type: "category", data: trend.map((_, i) => `W${i + 1}`), axisLine: { lineStyle: { color: css("--line") } }, axisLabel: { fontSize: 18 } },
+    yAxis: { type: "value", max: 70, splitLine: { lineStyle: { color: css("--line") } }, axisLabel: { fontSize: 18 } },
+    series: [
+      { type: "gauge", center: ["14%", "50%"], radius: "42%", min: 0, max: 100, startAngle: 220, endAngle: -40,
+        progress: { show: true, width: 22, itemStyle: { color: css("--accent") } },
+        axisLine: { lineStyle: { width: 22, color: [[1, css("--surface")]] } },
+        axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false }, pointer: { show: false },
+        detail: { valueAnimation: false, fontSize: 56, color: css("--text"), offsetCenter: [0, 0], formatter: (v) => `${Math.round(v)}%` },
+        title: { offsetCenter: [0, "38%"], color: css("--muted"), fontSize: 20 },
+        data: [{ value: 87 * g, name: "Retention" }] },
+      { type: "pie", center: ["38%", "50%"], radius: ["30%", "44%"], startAngle: 90, padAngle: 2,
+        itemStyle: { borderRadius: 8 }, label: { show: false },
+        data: [
+          { value: 46 * d + 0.001, itemStyle: { color: css("--accent-2") } },
+          { value: 32 * d + 0.001, itemStyle: { color: css("--accent") } },
+          { value: 22 * d + 0.001, itemStyle: { color: css("--warm") } },
+          { value: 100 * (1 - d), itemStyle: { color: "transparent" } },
+        ] },
+      { type: "line", smooth: true, symbol: "none", data: trend.slice(0, shown),
+        lineStyle: { width: 5, color: css("--accent") },
+        areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: "rgba(110,231,183,0.35)" }, { offset: 1, color: "rgba(110,231,183,0)" }]) } },
+    ],
+  });
+  chart.getZr().refreshImmediately();
+}
+window.addEventListener("resize", () => chart.resize());
+stage({ fps: 30, duration: 6, render });
+</script></body></html>
