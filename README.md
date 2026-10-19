@@ -18,6 +18,7 @@ Then ask Claude Code for a video, or type `/motion-video-director`.
 - `references/`: motion numbers, sound, export, narrated ads, UI motion, and `3d-fidelity.md` (how to make a
   three.js film look designed: real proportions, modelled props, light, per-set colour grade, 2D inserts,
   readable type).
+- `tools/cinetic/`: the technique draw from [cinetic](https://github.com/Leonxlnx/cinetic) (MIT): `python3 tools/cinetic/pick.py --format launch --seconds 25` draws a film's moves from 273 measured techniques.
 - `starter/`: a tested kit that renders any time-driven web page to MP4 with Playwright and ffmpeg, with
   examples for d3, Chart.js, ECharts, Cytoscape, 3d-force-graph, GSAP, and a three.js studio
   (`lib/studio3d.js`, about 30 real props).

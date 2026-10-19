@@ -1,6 +1,6 @@
 ---
 name: motion-video-director
-description: Director and checklist for making motion videos with AI as code (product reels, UI demos, launch films, explainers, kinetic type, animated charts, data stories, node graphs, shape morphs). Use when the user wants to make, plan, or improve an AI/motion/code-generated video, asks "what should I do" for a video, or wants a review of a video project. Picks the right route and tool, enforces deterministic seek(t) rendering, spring motion, design anchoring, beat-synced audio, and a frame-by-frame critique loop, then hands implementation to the hyperframes or remotion-best-practices skills.
+description: Director and checklist for making motion videos with AI as code (product reels, UI demos, launch films, explainers, kinetic type, animated charts, data stories, node graphs, shape morphs). Use when the user wants to make, plan, or improve an AI/motion/code-generated video, asks "what should I do" for a video, or wants a review of a video project. Picks the right route and tool, writes the concept, draws techniques from a 273-entry library instead of defaulting, enforces deterministic seek(t) rendering, spring motion, design anchoring, beat-synced audio, and a frame-by-frame critique loop, then hands implementation to the hyperframes, remotion-best-practices or cinetic skills.
 ---
 
 # Motion Video Director
@@ -38,6 +38,10 @@ Get answers to these, filling sensible defaults the user can correct:
    transitions from (take the grammar, never the subjects, logos or copy). See `brief-templates.md` section 10.
 5. **Audio.** Choose music, synthesized sound effects, voiceover, or silent.
 6. **Revisions.** For client work, agree on two rounds.
+7. **Concept.** Before any code, write three concepts through different lenses (the product's verb made literal,
+   the viewer's pain made visible, a formal device), keep the one whose props no other product could use, and name
+   its story device: one object that travels through every shot. Logline in 15 words or fewer
+   (`references/cinetic.md`).
 
 ## Step 2: Pick the route and the tool
 
@@ -48,6 +52,7 @@ Get answers to these, filling sensible defaults the user can correct:
 | C. Mixed | Real people, faces, organic or physical motion with sharp UI on top | AI video model (e.g. Seedance/Fal/Veo) for the footage, plus a code layer for UI and text |
 | D. Pure AI video | Abstract textures and backgrounds only | Diffusion video model. **Never use it for UI or text**, because the geometry warps |
 | E. Data & networks | Animated charts, metrics, flows, node graphs, "how it works" maps | **The tested starter kit in `starter/`** (d3, Chart.js, ECharts, Cytoscape, 3d-force-graph, GSAP). Pick the library with `references/data-viz-libraries.md` |
+| F. Branded launch film | Launch teasers, feature videos and loops, logo stings, UI walkthroughs where you invent or apply a clean brand | **cinetic** (`npx skills add Leonxlnx/cinetic`, Remotion or HyperFrames): concept, technique draw, beat-locked sound, true motion blur, forensics, ship gate. Stay on routes A/E or the three.js kit when following a supplied reference whose look cinetic bans (`references/cinetic.md`) |
 
 ### The starter kit (`starter/` next to this file)
 
@@ -175,6 +180,11 @@ State the route and the tool in one line, and why. If the user already uses a to
     landings. No full-width lens streaks or ghosts: they read as a white line across the video.
 19. **Explain a process by acting on one object,** not with a ring of labelled tiles and a moving dot. Each step
     does something visible to the same hero object, with the word placed under it.
+20. **Draw the techniques, don't choose them.** Left alone, every film gets the same fade-up, push-in and end card.
+    Run `python3 tools/cinetic/pick.py --format <launch|feature|loop|sting|walkthrough|vertical> --energy <calm|medium|high> --seconds <n>`
+    and build the 273-entry library's picks the concept can carry; reroll a pick at most twice, write the seed in the
+    shot list. Copy arrives as 1 to 4 word fragments with picture between them, never a sentence at once
+    (`references/cinetic.md`).
 
 ## Step 4: Audio on the same clock
 
@@ -286,6 +296,11 @@ Don't ship from the first render.
    `critique` / `sheet` when installed (`references/sound.md`).
 7. Check every transition frame by frame, and isolate each light or glint (render with it on and
    off and count changed pixels) rather than judging the whole frame.
+7a. Measure speed, not feel: text being read moves at most 3 px per frame (at 60 fps), labelled chips under 20,
+   ordinary moves under 25; anything over 12 gets real motion blur and nothing passes 60 to 80 except a
+   frame-filling wipe. Check for pops (one or two unexplained frames), stalls, ghost frames, banding in dark
+   gradients and a hook that moves less than half the film's median. For a ship decision use cinetic's
+   11-dimension gate (every dimension 3+, finish and sync 5, mean 4.2+), in `references/cinetic.md`.
 7b. With a visual reference, put your stills beside its contact sheet and judge like a designer: proportions,
    anything that reads as a box or blob, a palette that never changes, text lost on bright backgrounds, white
    streaks or haze. Tile stills with `xstack=...:grid=CxR`. Details in `references/3d-fidelity.md`.
@@ -336,6 +351,10 @@ portfolio piece. Fix the scope at one interaction, a fixed length, two formats, 
 - `references/3d-fidelity.md`: premium three.js look: matching a reference, real proportions, modelled props
   (`starter/lib/studio3d.js`), light and exposure, per-set grade and colour variety, mixing 2D shots, effects that
   hurt, auto-legible type, explaining a process, long-film workflow.
+- `references/cinetic.md`: from github.com/Leonxlnx/cinetic (MIT): when to hand a film to cinetic, the vendored
+  technique draw (`tools/cinetic/pick.py`, 273 techniques), concept lenses and story device, fragment copy grammar,
+  calm and crisp pace profiles, named curves and springs, speed limits in px/f, sound placement, BT.709 and
+  banding finish, the 11-dimension ship gate.
 - `references/narrated-ad.md`: voice-first narrated ads and explainers: show every capability as animation,
   real match cuts, Google AI Studio TTS with pause tags, cues from the take, sidechain mix, image decode gotcha.
 - Latest additions come from "Opus 5.5 Motion Lab" by @flxrnc (x.com/flxrnc/status/2105311836190978392).
